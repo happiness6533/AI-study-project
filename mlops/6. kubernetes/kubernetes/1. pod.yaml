@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: user-pod
+  labels:
+    type: user
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: node1
+  containers:
+  - name: user-server
+    image: happiness0110/user_server:1
+    ports:
+    - containerPort: 3001
+    resources:
+      requests:
+        memory: 1Gi
+      limits:
+        memory: 2Gi
+    volumeMounts:
+    - name: share
+      mountPath: /var/lib/mysql
+  volumes:
+  - name : share
+    persistentVolumeClaim:
+      claimName: pvc-share
+  terminationGracePeriodSeconds: 0
+
+# kubectl create -f ./Pod.yaml
+# kubectl apply -f ./pod.yaml
+# kubectl get pods -n defalut
+# kubectl get pods -o wide
+# kubectl get pod pod1
+# kubectl describe pod pod1
+# kubectl delete -f ./pod.yaml
+# kubectl exec pod1 -it /bin/bash

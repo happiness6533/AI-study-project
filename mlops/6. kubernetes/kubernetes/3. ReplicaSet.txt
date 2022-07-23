@@ -1,0 +1,127 @@
+1. ReplicaSet
+apiVersion: v1
+kind: ReplicaSet
+metadata:
+  name: user-replicaset
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      type: user
+  template:
+    metadata:
+      name: user-pod
+      labels:
+        type: user
+    spec:
+      containers:
+      - name: user-server
+        image: happiness0110/user_server:1
+        ports:
+        - containerPort: 3001
+        resources:
+          requests:
+            memory: 1Gi
+          limits:
+            memory: 2Gi
+      terminationGracePeriodSeconds: 0
+
+
+2. ReplicationController
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: replication-1
+spec:
+  replicas: 3
+  selector:
+    type: user-post
+  template:
+    metadata:
+      labels:
+        type: user-post
+    spec:
+      containers:
+      - name: simple_server1
+        image: happiness0110/simple_server1:1
+        ports:
+        - containerPort: 3001
+        resources:
+          requests:
+            memory: 2Gi
+          limits:
+            memory: 3Gi
+
+kubectl delete replicationcontrollers replication1 --cascade=false
+
+
+
+
+
+
+
+재연결
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: replica2
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      cascade: "false"
+  template:
+    metadata:
+      labels:
+        cascade: "false"
+    spec:
+      containers:
+      - name: container
+        image: kubetm/app:v1
+
+
+
+
+
+실습
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: replica1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      type: web
+      ver: v1
+    matchExpressions:
+    - {key: type, operator: In, values: [web]}
+    - {key: ver, operator: Exists}
+  template:
+    metadata:
+      labels:
+        type: web
+        ver: v1
+        location: dev
+    spec:
+      containers:
+      - name: container
+        image: kubetm/app:v1
+      terminationGracePeriodSeconds: 0
+
+
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-node-affinity1
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIngnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+  	       - {key: AZ-01, operator: Exists}
+  containers:
+  - name: container
+    image: kubetm/init

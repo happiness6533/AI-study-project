@@ -1,0 +1,178 @@
+10. volume deep
+
+일단 볼륨을 관리해주는 온프레미스 서비스
+스토리지 os Operato를 설치하자
+kubectl apply -f https://github.com/storageos/cluster-operator/releases/download/1.5.0/storageos-operator.yaml
+
+설치 확인
+kubectl get all -n storageos-operator
+
+만들어진 디플로이먼트 수정
+kubectl edit deployments.apps storageos-cluster-operator -n storageos-operator
+
+spec.containers.env의 DISABLE_SCHEDULER_WEBHOOK의 Value를 true로 설정
+spec:
+  containers:
+  - command:
+    - cluster-operator
+    env:
+    - name: DISABLE_SCHEDULER_WEBHOOK
+      value: "false"    # true 로 변경
+    image: storageos/cluster-operator:1.5.0
+    imagePullPolicy: IfNotPresent
+
+
+
+이제 관리자 계정을 만즐자
+관리 계정을 위한 Secret 생성 (username 및 password를 Base64문자로 만들기)
+echo -n "admin" | base64
+echo -n "1234" | base64    
+
+kubectl create -f - <<END
+apiVersion: v1
+kind: Secret
+metadata:
+  name: "storageos-api"
+  namespace: "storageos-operator"
+  labels:
+    app: "storageos"
+type: "kubernetes.io/storageos"
+data:
+  apiUsername: YWRtaW4=  # admin
+  apiPassword: MTIzNA==  # 1234
+END
+
+
+
+
+스토리지 설치 트리거 생성
+kubectl apply -f - <<END
+apiVersion: "storageos.com/v1"
+kind: StorageOSCluster
+metadata:
+  name: "example-storageos"
+  namespace: "storageos-operator"
+spec:
+  secretRefName: "storageos-api" # Reference the Secret created in the previous step
+  secretRefNamespace: "storageos-operator"  # Namespace of the Secret
+  k8sDistro: "kubernetes"
+  images:
+    nodeContainer: "storageos/node:1.5.0" # StorageOS version
+  resources:
+    requests:
+    memory: "512Mi"
+END
+
+설치 확인
+kubectl get all -n storageos
+
+대쉬보드 접속을 위한 서비스 수정
+kubectl edit service storageos -n storageos
+
+spec:
+  clusterIP: 10.109.77.121
+  externalIPs:     # 추가
+  - 192.168.0.30   # Master IP 추가
+  ports:
+
+접속
+http://192.168.0.30:5705/
+
+
+이제 디폴트 스토리지 클래ㅡ를 추가
+kubectl apply -f - <<END
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: default
+  annotations: 
+      # Default StorageClass로 선택 
+    storageclass.kubernetes.io/is-default-class: "true"
+reclaimPolicy: Retain, Delete, Recycle    
+provisioner: kubernetes.io/storageos
+parameters:
+  adminSecretName: storageos-api
+  adminSecretNamespace: storageos-operator
+  fsType: ext4
+  pool: default
+END
+
+kubectl get storageclasses.storage.k8s.io
+
+
+
+pv를 만들어보자
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-hostpath1
+spec:
+  capacity:
+    storage: 1G
+  accessModes:
+  - ReadWriteOnce
+  hostPath:
+    path: /mnt/hostpath
+    type: DirectoryOrCreate
+
+
+pvc를 만들어보자
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-hostpath1
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1G
+  storageClassName: ""
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-fast1
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1G
+  storageClassName: "fast"
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-default1
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2G
+
+이제 pod를 만든다
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-hostpath1
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: k8s-node1
+  terminationGracePeriodSeconds: 0
+  containers:
+  - name: container
+    image: kubetm/init
+    volumeMounts:
+    - name: hostpath
+      mountPath: /mount1
+  volumes:
+  - name: hostpath
+    persistentVolumeClaim:
+      claimName: pvc-hostpath1
+
+cd /mount1
+touch file.txt              
+
+

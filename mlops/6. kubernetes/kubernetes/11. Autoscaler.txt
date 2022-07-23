@@ -1,0 +1,147 @@
+1. 준비
+매트리스서버 다운
+git clone https://github.com/kubernetes-sigs/metrics-server.git
+
+설치
+cd metrics-server
+kubectl apply -f deploy/kubernetes/
+
+디플로이먼트 수정
+kubectl edit deployment metrics-server -n kube-system
+------------------------
+spec:
+   containers:
+   - args:
+     - --cert-dir=/tmp
+     - --secure-port=4443
+     - --kubelet-insecure-tls
+     - --kubelet-preferred-address-types=InternalIP
+     image: k8s.gcr.io/metrics-server-amd64:v0.3.6
+     imagePullPolicy: IfNotPresent
+     name: metrics-server
+     ------------------------
+
+확인 kubectl top node
+------------------------
+NAME             CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%   
+k8s-master       485m         9%     4852Mi          32%       
+k8s-node1        413m         8%     4929Mi          33%       
+k8s-node2        554m         11%    4672Mi          31%       
+------------------------
+
+
+2. cpu로 hpa
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ name: stateless-cpu1
+spec:
+ selector:
+   matchLabels:
+      resource: cpu
+ replicas: 2
+ template:
+   metadata:
+     labels:
+       resource: cpu
+   spec:
+     containers:
+     - name: container
+       image: tmkube/app:v1
+       resources:
+         requests:
+           cpu: 10m
+         limits:
+           cpu: 20m
+
+apiVersion: v1
+kind: Service
+metadata:
+ name: stateless-svc1
+spec:
+ selector:
+    resource: cpu
+ ports:
+   - port: 8080
+     targetPort: 8080
+     nodePort: 30001
+ type: NodePort
+
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hpa-resource-cpu
+spec:
+  maxReplicas: 10
+  minReplicas: 2
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: stateless-cpu1
+  metrics:
+  - type: Resource 
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50     
+
+kubectl get hpa -w
+while true;do curl 192.168.0.30:30001/hostname; sleep 0.1; done
+kubectl delete horizontalpodautoscalers.autoscaling hpa-resource-cpu
+
+3. 메모리로 hpa
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ name: stateless-memory1
+spec:
+ selector:
+   matchLabels:
+      resource: memory
+ replicas: 2
+ template:
+   metadata:
+     labels:
+       resource: memory
+   spec:
+     containers:
+     - name: container
+       image: tmkube/app:v1
+       resources:
+         requests:
+           memory: 10Mi
+         limits:
+           memory: 20Mi
+
+apiVersion: v1
+kind: Service
+metadata:
+ name: stateless-svc2
+spec:
+ selector:
+    resource: memory
+ ports:
+   - port: 8080
+     targetPort: 8080
+     nodePort: 30002
+ type: NodePort
+
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hpa-resource-memory
+spec:
+  maxReplicas: 10
+  minReplicas: 2
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: stateless-memory1
+  metrics:
+  - type: Resource 
+    resource:
+      name: memory
+      target:
+        type: AverageValue
+        averageValue: 5Mi

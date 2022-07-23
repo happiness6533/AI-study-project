@@ -1,0 +1,88 @@
+1. Recreate
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment-1
+spec:
+  selector:
+    matchLabels:
+      type: user-post
+  replicas: 3
+  strategy:
+    type: Recreate
+  revisionHistoryLimit: 1
+  template:
+    metadata:
+      labels:
+        type: user-post-2
+    spec:
+      containers:
+      - name: simple_server2
+        image: happiness0110/simple_server1:2
+        ports:
+        - containerPort: 3001
+      terminationGracePeriodSeconds: 10
+
+kubectl rollout history deployment deployment-1
+kubectl rollout undo deployment deployment-1 --to-revision=2
+
+2. RollingUpdate
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment-2
+spec:
+  selector:
+    matchLabels:
+      type: user-post
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+  minReadySeconds: 10
+  template:
+    metadata:
+      labels:
+        type: user-post2
+    spec:
+      containers:
+      - name: simple_server2
+        image: happiness0110/simple_server1:2
+        ports:
+        - containerPort: 3001
+      terminationGracePeriodSeconds: 0
+
+3. 블루그린
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: replica1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      type: user-post-2
+  template:
+    metadata:
+      name: simple_server2
+      labels:
+        type: user-post-2
+    spec:
+      containers:
+      - name: simple_server2
+        image: happiness0110/simple_server1:2
+        ports:
+        - containerPort: 3001
+      terminationGracePeriodSeconds: 0
+
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-3
+spec:
+  selector:
+    type: user-post-2
+  ports:
+  - port: 8080
+    protocol: TCP
+    targetPort: 3001

@@ -1,0 +1,42 @@
+# 서비스
+# 클러스터 아이피
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service-cluster-ip
+spec:
+  selector:
+    type: user
+  ports:
+  - port: 9001
+    targetPort: 3001
+  type: ClusterIP
+
+# 노드포트
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service-node-port
+spec:
+  selector:
+    type: user
+  ports:
+  - port: 9001
+    targetPort: 3001
+    nodePort: 30001
+  type: NodePort
+  externalTrafficPolicy: Local
+
+# 로드밸런서
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service-load-balancer
+spec:
+  selector:
+    type: user
+  ports:
+  - port: 9001
+    protocol: TCP
+    targetPort: 3001
+  type: LoadBalancer

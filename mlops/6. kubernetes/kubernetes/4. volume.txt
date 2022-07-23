@@ -1,0 +1,87 @@
+1. emptyDir
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-volume-1
+spec:
+  containers:
+  - name: simple_server1
+    image: happiness0110/simple_server1:1
+    ports:
+    - containerPort: 3001
+    volumeMounts:
+    - name: empty-dir
+      mountPath: /user_server/share_disk
+  volumes:
+  - name : empty-dir
+    emptyDir: {}
+
+2. hostPath
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-volume-2
+spec:
+  containers:
+  - name: simple_server1
+    image: happiness0110/simple_server1:1
+    ports:
+    - containerPort: 3001
+    volumeMounts:
+    - name: host-path
+      mountPath: /user_server/share_disk
+  volumes:
+  - name : host-path
+    hostPath:
+      path: /node1-share
+      type: DirectoryOrCreate
+
+3. PV
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-1
+spec:
+  capacity:
+    storage: 1G
+  accessModes:
+  - ReadWriteOnce
+  local:
+    path: /pv-share
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - {key: kubernetes.io/hostname, operator: In, values: [node1]}
+
+4. pvc
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-1
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1G
+  storageClassName: ""
+
+5. pod
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-volume-3
+spec:
+  containers:
+  - name: simple_server1
+    image: happiness0110/simple_server1:1
+    ports:
+    - containerPort: 3001
+    volumeMounts:
+    - name: pvc-pv
+      mountPath: /var/lib/mysql
+  volumes:
+  - name : pvc-pv
+    persistentVolumeClaim:
+      claimName: pvc-1
